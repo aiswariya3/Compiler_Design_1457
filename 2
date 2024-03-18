@@ -1,0 +1,169 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <string.h>
+
+#define MAX_IDENTIFIER_LENGTH 50
+
+// Token types
+typedef enum {
+    IDENTIFIER,
+    CONSTANT,
+    OPERATOR,
+    COMMENT,
+    END_OF_FILE
+} TokenType;
+
+// Token structure
+typedef struct {
+    TokenType type;
+    char value[MAX_IDENTIFIER_LENGTH];
+} Token;
+
+// Function prototypes
+int isOperator(char c);
+int isKeyword(char* str);
+Token getNextToken(FILE* fp);
+
+int main() {
+    FILE *fp;
+    char filename[100];
+    printf("Enter the filename to be analyzed: ");
+    scanf("%s", filename);
+
+    // Open the file
+    fp = fopen(filename, "r");
+    if (fp == NULL) {
+        printf("Error opening file.\n");
+        exit(1);
+    }
+
+    Token token;
+    // Read tokens until the end of file
+    while ((token = getNextToken(fp)).type != END_OF_FILE) {
+        // Print token information
+        switch (token.type) {
+            case IDENTIFIER:
+                printf("Identifier: %s\n", token.value);
+                break;
+            case CONSTANT:
+                printf("Constant: %s\n", token.value);
+                break;
+            case OPERATOR:
+                printf("Operator: %s\n", token.value);
+                break;
+            case COMMENT:
+                printf("Comment: %s\n", token.value);
+                break;
+            default:
+                break;
+        }
+    }
+
+    // Close the file
+    fclose(fp);
+
+    return 0;
+}
+
+// Function to check if a character is an operator
+int isOperator(char c) {
+    char operators[] = "+-*/%=><!";
+    for (int i = 0; i < strlen(operators); i++) {
+        if (c == operators[i])
+            return 1;
+    }
+    return 0;
+}
+
+// Function to check if a string is a keyword
+int isKeyword(char* str) {
+    char keywords[][10] = {"if", "else", "while", "for", "int", "float", "char", "return"};
+    for (int i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i++) {
+        if (strcmp(str, keywords[i]) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+// Function to get the next token from the input file
+Token getNextToken(FILE* fp) {
+    Token token;
+    int c;
+
+    // Read the next character
+    c = fgetc(fp);
+
+    // End of file
+    if (c == EOF) {
+        token.type = END_OF_FILE;
+        return token;
+    }
+
+    // Check if the character is an operator
+    if (isOperator(c)) {
+        token.type = OPERATOR;
+        token.value[0] = c;
+        token.value[1] = '\0';
+        return token;
+    }
+
+    // Check if the character is alphanumeric (start of identifier or constant)
+    if (isalpha(c) || isdigit(c)) {
+        // Read the identifier or constant
+        int i = 0;
+        while (isalnum(c) || c == '_') {
+            token.value[i++] = c;
+            c = fgetc(fp);
+        }
+        token.value[i] = '\0';
+
+        // Check if it's a keyword
+        if (isKeyword(token.value)) {
+            token.type = IDENTIFIER;
+        } else {
+            token.type = CONSTANT;
+        }
+
+        // Put back the non-alphanumeric character to the input stream
+        ungetc(c, fp);
+
+        return token;
+    }
+
+    // Check for comments
+    if (c == '/') {
+        int nextChar = fgetc(fp);
+        if (nextChar == '/') {
+            // Single-line comment, read until the end of the line
+            int i = 0;
+            token.type = COMMENT;
+            while ((c = fgetc(fp)) != '\n' && c != EOF) {
+                token.value[i++] = c;
+            }
+            token.value[i] = '\0';
+            return token;
+        } else if (nextChar == '*') {
+            // Multi-line comment, read until '*/'
+            int i = 0;
+            token.type = COMMENT;
+            int prevChar = ' ';
+            while ((c = fgetc(fp)) != EOF) {
+                if (prevChar == '*' && c == '/') {
+                    break;
+                }
+                token.value[i++] = c;
+                prevChar = c;
+            }
+            token.value[i] = '\0';
+            return token;
+        } else {
+            // Not a comment, put back the character
+            ungetc(nextChar, fp);
+        }
+    }
+
+    // Unknown token
+    printf("Unknown token: %c\n", c);
+    exit(1);
+}
